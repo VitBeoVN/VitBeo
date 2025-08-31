@@ -1,0 +1,314 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local replicator = ReplicatedStorage:WaitForChild("Replicator")
+
+local fruitList = {
+    "BARRIER","CHOP","SAND","SMOKE","RUBBER","FALCON","GAS","ICE","DARKNESS","ASK","LIGHT","FLAME","MAGMA","PAW","STRING","LOVE","SNOW","QUAKE","GRAVITY","PHOENIX","DRAGON","MAGNET","ICEV2","MAGMAV2","LIGHTV2","FLAMEV2","VENOM","DOUGH","LEOPARD","OPE","DOUGHV2","IMPACT","OKUCHI","DARKQUAKE","TSRUBBER","SOUL","DRAGONV2","NIKA","LIGHTNING","LEOPARDV2"
+}
+
+local codes = {"CLOSERR990K!","OMGBIGMILLI!!!","THANKSFORDAMILLY","MILLITEN!","REBOOTPART2","CRASHL4NDING!","UPDATE21!","THEMARINEHERO"}
+
+local autoSpinEnabled = false
+local selectedFruits = {}
+local spinningConnection = nil
+local selectedSlot = 1
+
+local function getAllSlots()
+    local ok, res = pcall(function()
+        local md = player:FindFirstChild("MAIN_DATA")
+        local slots = md and md:FindFirstChild("Slots")
+        if not slots then return {} end
+
+        local slotInfo = {}
+        for i = 1, 8 do
+            local slot = slots:FindFirstChild(tostring(i))
+            slotInfo[i] = slot and string.upper(slot.Value) or "EMPTY"
+        end
+        return slotInfo
+    end)
+    if not ok then warn("Lỗi khi lấy slot:", res) end
+    return res or {}
+end
+
+local function getCurrFruit()
+    local slots = getAllSlots()
+    return slots[selectedSlot]
+end
+
+local function spinOnce()
+    if replicator then
+        pcall(function()
+            replicator:InvokeServer("FruitsHandler","Spin",{})
+        end)
+    end
+end
+
+local function redeemCode(code)
+    if replicator then
+        pcall(function()
+            replicator:InvokeServer("Codes","Redeem",{["Code"]=code})
+        end)
+    end
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "AutoSpinFruitBattlegroudGUI"
+gui.ResetOnSpawn = false
+gui.Parent = playerGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0,360,0,500)
+frame.Position = UDim2.new(0.05,0,0.2,0)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Parent = gui
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,-60,0,28)
+title.BackgroundColor3 = Color3.fromRGB(20,20,20)
+title.Text = "Auto Spin Fruit Battleground Make By VitBeo"
+title.TextColor3 = Color3.fromRGB(230,230,230)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 16
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = frame
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0,28,0,28)
+closeBtn.Position = UDim2.new(1,-30,0,0)
+closeBtn.Text = "✖"
+closeBtn.BackgroundColor3 = Color3.fromRGB(200,50,50)
+closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+closeBtn.Parent = frame
+closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
+
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0,28,0,28)
+minBtn.Position = UDim2.new(1,-60,0,0)
+minBtn.Text = "—"
+minBtn.BackgroundColor3 = Color3.fromRGB(100,100,100)
+minBtn.TextColor3 = Color3.fromRGB(255,255,255)
+minBtn.Parent = frame
+
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1,0,1,-28)
+content.Position = UDim2.new(0,0,0,28)
+content.BackgroundTransparency = 1
+content.Parent = frame
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1,-10,0,24)
+statusLabel.Position = UDim2.new(0,5,0,4)
+statusLabel.Text = "Status: Idle | Current: -"
+statusLabel.TextColor3 = Color3.fromRGB(210,210,210)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = content
+
+local redeemBtn = Instance.new("TextButton")
+redeemBtn.Size = UDim2.new(1,-20,0,30)
+redeemBtn.Position = UDim2.new(0,10,0,34)
+redeemBtn.Text = "Redeem All Codes"
+redeemBtn.BackgroundColor3 = Color3.fromRGB(40,120,240)
+redeemBtn.TextColor3 = Color3.fromRGB(255,255,255)
+redeemBtn.Parent = content
+redeemBtn.MouseButton1Click:Connect(function()
+    redeemBtn.Text = "Redeeming..."
+    for _,c in ipairs(codes) do
+        redeemCode(c)
+        task.wait(0.3)
+    end
+    redeemBtn.Text = "Done!"
+    task.wait(1)
+    redeemBtn.Text = "Redeem All Codes"
+end)
+
+local spinBtn = Instance.new("TextButton")
+spinBtn.Size = UDim2.new(1,-20,0,30)
+spinBtn.Position = UDim2.new(0,10,0,70)
+spinBtn.Text = "AutoSpin: OFF"
+spinBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+spinBtn.TextColor3 = Color3.fromRGB(255,255,255)
+spinBtn.Parent = content
+
+local scrollContainer = Instance.new("ScrollingFrame")
+scrollContainer.Size = UDim2.new(1,-20,0,300)
+scrollContainer.Position = UDim2.new(0,10,0,106)
+scrollContainer.CanvasSize = UDim2.new(0,0,0, (#fruitList*28 + 8*20 + 60)) scrollContainer.ScrollBarThickness = 6
+scrollContainer.BackgroundColor3 = Color3.fromRGB(20,20,20)
+scrollContainer.Parent = content
+
+local targetTitle = Instance.new("TextLabel")
+targetTitle.Size = UDim2.new(1,0,0,24)
+targetTitle.Position = UDim2.new(0,0,0,0)
+targetTitle.Text = "Target Fruits"
+targetTitle.BackgroundColor3 = Color3.fromRGB(30,30,30)
+targetTitle.TextColor3 = Color3.fromRGB(255,255,255)
+targetTitle.TextXAlignment = Enum.TextXAlignment.Left
+targetTitle.Parent = scrollContainer
+
+for i,fruit in ipairs(fruitList) do
+    local fruitName = string.upper(fruit)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1,0,0,28)
+    btn.Position = UDim2.new(0,0,0,24 + (i-1)*28)
+    btn.Text = fruitName
+    btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.Parent = scrollContainer
+
+    btn.MouseButton1Click:Connect(function()
+        if selectedFruits[fruitName] then
+            selectedFruits[fruitName] = nil
+            btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        else
+            selectedFruits[fruitName] = true
+            btn.BackgroundColor3 = Color3.fromRGB(40,180,100)
+        end
+    end)
+end
+
+local slotTitle = Instance.new("TextLabel")
+slotTitle.Size = UDim2.new(1,0,0,24)
+slotTitle.Position = UDim2.new(0,0,0, 24 + #fruitList*28 + 4)
+slotTitle.Text = "Select Slot"
+slotTitle.BackgroundColor3 = Color3.fromRGB(30,30,30)
+slotTitle.TextColor3 = Color3.fromRGB(255,255,255)
+slotTitle.TextXAlignment = Enum.TextXAlignment.Left
+slotTitle.Parent = scrollContainer
+
+for i = 1, 8 do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1,0,0,20)
+    btn.Position = UDim2.new(0,0,0, 24 + #fruitList*28 + 28 + (i-1)*20)
+    btn.Text = "Slot "..i
+    btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.Parent = scrollContainer
+
+    btn.MouseButton1Click:Connect(function()
+        selectedSlot = i
+        for _,s in pairs(scrollContainer:GetChildren()) do
+            if s:IsA("TextButton") and s.Text:match("^Slot %d$") then
+                s.BackgroundColor3 = Color3.fromRGB(50,50,50)
+            end
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(40,180,100)
+    end)
+end
+
+local function handleAutoSpin()
+    if spinningConnection then spinningConnection:Disconnect() end
+
+    spinningConnection = RunService.Heartbeat:Connect(function()
+        if autoSpinEnabled then
+            local curr = getCurrFruit()
+            curr = curr and string.upper(curr) or nil
+            local targetExists = next(selectedFruits) ~= nil
+
+            if curr and targetExists and selectedFruits[curr] then
+                autoSpinEnabled = false
+                spinBtn.Text = "AutoSpin: OFF"
+                statusLabel.Text = "Status: 🎉 FOUND! | Current: "..curr
+
+                local sound = Instance.new("Sound")
+                sound.SoundId = "rbxassetid://6534947240"
+                sound.Volume = 10
+                sound.Parent = workspace
+                sound:Play()
+                Debris:AddItem(sound,5)
+
+                task.spawn(function()
+                    for i=1,6 do
+                        frame.BackgroundColor3 = (i%2==0) and Color3.fromRGB(30,30,30) or Color3.fromRGB(40,200,100)
+                        task.wait(0.3)
+                    end
+                    frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+                end)
+            else
+                spinOnce()
+            end
+        end
+    end)
+end
+
+spinBtn.MouseButton1Click:Connect(function()
+    autoSpinEnabled = not autoSpinEnabled
+    spinBtn.Text = "AutoSpin: "..(autoSpinEnabled and "ON" or "OFF")
+    if autoSpinEnabled then
+        handleAutoSpin()
+    elseif spinningConnection then
+        spinningConnection:Disconnect()
+        spinningConnection = nil
+    end
+end)
+
+local slotLabels = {}
+for i = 1, 8 do
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.5, -5, 0, 20)
+    lbl.Position = UDim2.new(((i-1)%2)*0.5, 5, math.floor((i-1)/2)*20 + 420, 0)
+    lbl.TextColor3 = Color3.fromRGB(200,200,200)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = "Slot "..i..": -"
+    lbl.Font = Enum.Font.SourceSans
+    lbl.TextSize = 14
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = content
+    slotLabels[i] = lbl
+end
+
+task.spawn(function()
+    while gui.Parent do
+        local slots = getAllSlots()
+        local curr = slots[selectedSlot] or "N/A"
+        local st = autoSpinEnabled and "Running" or "Idle"
+        statusLabel.Text = string.format("Status: %s | Current: %s", st, curr)
+
+        for i,fruit in ipairs(slots) do
+            slotLabels[i].Text = "Slot "..i..": "..fruit
+        end
+        task.wait(0.5)
+    end
+end)
+
+minBtn.MouseButton1Click:Connect(function()
+    content.Visible = not content.Visible
+    scrollContainer.Visible = content.Visible
+    frame.Size = content.Visible and UDim2.new(0,360,0,500) or UDim2.new(0,360,0,28)
+end)
+
+local dragging=false
+local dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    frame.Position = UDim2.new(startPos.X.Scale,startPos.X.Offset+delta.X,startPos.Y.Scale,startPos.Y.Offset+delta.Y)
+end
+
+frame.InputBegan:Connect(function(input)
+    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+        dragging=true
+        dragStart=input.Position
+        startPos=frame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState==Enum.UserInputState.End then dragging=false end
+        end)
+    end
+end)
+
+frame.InputChanged:Connect(function(input)
+    if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
+        dragInput=input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input==dragInput and dragging then update(input) end
+end)
